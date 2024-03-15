@@ -6,8 +6,13 @@ import torch
 from model import NeuralNet
 from nltk_utils import bag_of_words, tokenize
 
+import warnings
+
+# Suppress sklearn warning
+warnings.filterwarnings("ignore", category=UserWarning)
+
 # Load pre-trained machine learning model using pickle
-with open('heart_disease_model.pkl', 'rb') as f:
+with open('heardisease_model.pkl', 'rb') as f:
     model = pickle.load(f)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -35,18 +40,68 @@ print("Welcome to the Heart Disease Risk Assessment Chatbot! I'll be asking you 
 # Initialize dictionary to store user inputs
 user_inputs = {}
 
-for intent in intents['intents']:
-    if intent['tag'] in ['age_input', 'sex_input', 'chest_pain_input', 'blood_pressure_input', 'cholesterol_input', 'blood_sugar_input', 'ecg_results_input', 'heart_rate_input', 'angina_input', 'st_depression_input', 'st_slope_input', 'vessels_input', 'thal_input']:
+# Define the desired order of inputs
+input_order = [
+    'age', 'sex', 'chest_pain_type', 'resting_blood_pressure', 'serum_cholestoral',
+    'fasting_blood_sugar', 'resting_ecg', 'max_heart_rate', 'exercise_induced_angina',
+    'st_depression', 'st_slope', 'num_major_vessels', 'thal'
+]
+
+# Ask questions and collect user inputs
+for input_name in input_order:
+    # Find the intent corresponding to the input
+    intent = next((intent for intent in intents['intents'] if intent['tag'] == input_name), None)
+    if intent:
         # Ask the user the question specified in the patterns
         pattern = intent['patterns'][0]
-        formatted_pattern = pattern.format(**user_inputs) if user_inputs else pattern  # Format the question with user inputs if available
-        print(formatted_pattern)  # Prompt user with the question
-        user_input = input("You: ")
-        user_inputs[intent['tag']] = user_input  # Store user's response with corresponding tag
+        print(pattern)
+        while True:
+            user_input = input("You: ")
+            
+            # Translate 'yes'/'no' responses to numerical values
+            if user_input.lower() in ['yes', 'y']:
+                user_input = 1
+                break
+            elif user_input.lower() in ['no', 'n']:
+                user_input = 0
+                break
+            elif input_name == 'sex':  # Translate gender inputs
+                if user_input.lower() == 'male':
+                    user_input = 1
+                    break
+                elif user_input.lower() == 'female':
+                    user_input = 0
+                    break
+            elif user_input.isdigit():  # Check if input is numeric
+                user_input = float(user_input)
+                break
+            else:
+                print("Invalid input! Please enter a valid input.")
 
-# Convert user inputs to the appropriate data types
-# Assuming all inputs are numeric for simplicity
-model_inputs = [float(user_inputs[tag]) for tag in tags if tag in user_inputs]
+        # Store user's response with corresponding input name
+        user_inputs[input_name] = float(user_input)
+    else:
+        pass  # Skip error message
+
+# Sort the inputs according to the desired order
+sorted_inputs = [
+    user_inputs.get('age', ''), 
+    user_inputs.get('sex', ''), 
+    user_inputs.get('chest_pain_type', ''), 
+    user_inputs.get('resting_blood_pressure', ''), 
+    user_inputs.get('serum_cholestoral', ''), 
+    user_inputs.get('fasting_blood_sugar', ''), 
+    user_inputs.get('resting_ecg', ''), 
+    user_inputs.get('max_heart_rate', ''), 
+    user_inputs.get('exercise_induced_angina', ''), 
+    user_inputs.get('st_depression', ''), 
+    user_inputs.get('st_slope', ''), 
+    user_inputs.get('num_major_vessels', ''), 
+    user_inputs.get('thal', '')
+]
+
+# Convert sorted inputs to float values
+model_inputs = [float(input_value) for input_value in sorted_inputs]
 
 # Make predictions using the pre-trained model
 prediction = model.predict([model_inputs])
